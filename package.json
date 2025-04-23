@@ -1,5 +1,5 @@
 {
-  "name": "prop-types",
+  "name": "prop-types-compat",
   "version": "15.8.1",
   "description": "Runtime type checking for React props and similar objects.",
   "sideEffects": false,
@@ -27,8 +27,7 @@
   "homepage": "https://facebook.github.io/react/",
   "dependencies": {
     "loose-envify": "^1.4.0",
-    "object-assign": "^4.1.1",
-    "react-is": "^16.13.1"
+    "object-assign": "^4.1.1"
   },
   "scripts": {
     "pretest": "npm run lint",

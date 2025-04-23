@@ -5,21 +5,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-'use strict';
+"use strict";
 
-var ReactIs = require('react-is');
-var assign = require('object-assign');
+var assign = require("object-assign");
 
-var ReactPropTypesSecret = require('./lib/ReactPropTypesSecret');
-var has = require('./lib/has');
-var checkPropTypes = require('./checkPropTypes');
+var ReactPropTypesSecret = require("./lib/ReactPropTypesSecret");
+var has = require("./lib/has");
+var checkPropTypes = require("./checkPropTypes");
 
-var printWarning = function() {};
+var printWarning = function () {};
 
-if (process.env.NODE_ENV !== 'production') {
-  printWarning = function(text) {
-    var message = 'Warning: ' + text;
-    if (typeof console !== 'undefined') {
+if (process.env.NODE_ENV !== "production") {
+  printWarning = function (text) {
+    var message = "Warning: " + text;
+    if (typeof console !== "undefined") {
       console.error(message);
     }
     try {
@@ -35,10 +34,112 @@ function emptyFunctionThatReturnsNull() {
   return null;
 }
 
-module.exports = function(isValidElement, throwOnDirectAccess) {
+var OLD_REACT_FRAGMENT_TYPE = Symbol.for("react.fragment");
+var OLD_REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode");
+var OLD_REACT_PROFILER_TYPE = Symbol.for("react.profiler");
+var OLD_REACT_PROVIDER_TYPE = Symbol.for("react.provider");
+var OLD_REACT_CONTEXT_TYPE = Symbol.for("react.context");
+var OLD_REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref");
+var OLD_REACT_SUSPENSE_TYPE = Symbol.for("react.suspense");
+var OLD_REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list");
+var OLD_REACT_MEMO_TYPE = Symbol.for("react.memo");
+var OLD_REACT_LAZY_TYPE = Symbol.for("react.lazy");
+var OLD_REACT_OFFSCREEN_TYPE = Symbol.for("react.offscreen");
+var OLD_REACT_MODULE_REFERENCE = Symbol.for("react.module.reference");
+var enableDebugTracing = false; // Track which Fiber(s) schedule render work.
+var enableLegacyHidden = false; // Enables unstable_avoidThisFallback feature in Fiber
+var enableScopeAPI = false; // Experimental Create Event Handle API.
+var enableCacheElement = false;
+var enableTransitionTracing = false; // No known bugs, but needs performance testing
+
+/**
+ * For React 18 and below
+ */
+function isValidElementTypeOld(type) {
+  if (typeof type === "string" || typeof type === "function") {
+    return true;
+  } // Note: typeof might be other than 'symbol' or 'number' (e.g. if it's a polyfill).
+
+  if (
+    type === OLD_REACT_FRAGMENT_TYPE ||
+    type === OLD_REACT_PROFILER_TYPE ||
+    enableDebugTracing ||
+    type === OLD_REACT_STRICT_MODE_TYPE ||
+    type === OLD_REACT_SUSPENSE_TYPE ||
+    type === OLD_REACT_SUSPENSE_LIST_TYPE ||
+    enableLegacyHidden ||
+    type === OLD_REACT_OFFSCREEN_TYPE ||
+    enableScopeAPI ||
+    enableCacheElement ||
+    enableTransitionTracing
+  ) {
+    return true;
+  }
+
+  if (typeof type === "object" && type !== null) {
+    if (
+      type.$$typeof === OLD_REACT_LAZY_TYPE ||
+      type.$$typeof === OLD_REACT_MEMO_TYPE ||
+      type.$$typeof === OLD_REACT_PROVIDER_TYPE ||
+      type.$$typeof === OLD_REACT_CONTEXT_TYPE ||
+      type.$$typeof === OLD_REACT_FORWARD_REF_TYPE || // This needs to include all possible module reference object
+      // types supported by any Flight configuration anywhere since
+      // we don't know which Flight build this will end up being used
+      // with.
+      type.$$typeof === OLD_REACT_MODULE_REFERENCE ||
+      type.getModuleId !== undefined
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+var REACT_FRAGMENT_TYPE = Symbol.for("react.fragment");
+var REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode");
+var REACT_PROFILER_TYPE = Symbol.for("react.profiler");
+var REACT_CONSUMER_TYPE = Symbol.for("react.consumer");
+var REACT_CONTEXT_TYPE = Symbol.for("react.context");
+var REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref");
+var REACT_SUSPENSE_TYPE = Symbol.for("react.suspense");
+var REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list");
+var REACT_MEMO_TYPE = Symbol.for("react.memo");
+var REACT_LAZY_TYPE = Symbol.for("react.lazy");
+var REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference");
+
+/**
+ * For React 19, not guaranteed for above version because at the time of writing React 19 is the major version.
+ */
+function isValidElementNew(type) {
+  return "string" === typeof type ||
+    "function" === typeof type ||
+    type === REACT_FRAGMENT_TYPE ||
+    type === REACT_PROFILER_TYPE ||
+    type === REACT_STRICT_MODE_TYPE ||
+    type === REACT_SUSPENSE_TYPE ||
+    type === REACT_SUSPENSE_LIST_TYPE ||
+    ("object" === typeof type &&
+      null !== type &&
+      (type.$$typeof === REACT_LAZY_TYPE ||
+        type.$$typeof === REACT_MEMO_TYPE ||
+        type.$$typeof === REACT_CONTEXT_TYPE ||
+        type.$$typeof === REACT_CONSUMER_TYPE ||
+        type.$$typeof === REACT_FORWARD_REF_TYPE ||
+        type.$$typeof === REACT_CLIENT_REFERENCE ||
+        void 0 !== type.getModuleId))
+    ? !0
+    : !1;
+}
+
+function isValidElementType(type) {
+  return isValidElementTypeOld(type) || isValidElementNew(type);
+}
+
+module.exports = function (isValidElement, throwOnDirectAccess) {
   /* global Symbol */
-  var ITERATOR_SYMBOL = typeof Symbol === 'function' && Symbol.iterator;
-  var FAUX_ITERATOR_SYMBOL = '@@iterator'; // Before Symbol spec.
+  var ITERATOR_SYMBOL = typeof Symbol === "function" && Symbol.iterator;
+  var FAUX_ITERATOR_SYMBOL = "@@iterator"; // Before Symbol spec.
 
   /**
    * Returns the iterator method function contained on the iterable object.
@@ -55,8 +156,11 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
    * @return {?function}
    */
   function getIteratorFn(maybeIterable) {
-    var iteratorFn = maybeIterable && (ITERATOR_SYMBOL && maybeIterable[ITERATOR_SYMBOL] || maybeIterable[FAUX_ITERATOR_SYMBOL]);
-    if (typeof iteratorFn === 'function') {
+    var iteratorFn =
+      maybeIterable &&
+      ((ITERATOR_SYMBOL && maybeIterable[ITERATOR_SYMBOL]) ||
+        maybeIterable[FAUX_ITERATOR_SYMBOL]);
+    if (typeof iteratorFn === "function") {
       return iteratorFn;
     }
   }
@@ -108,19 +212,19 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
    * @internal
    */
 
-  var ANONYMOUS = '<<anonymous>>';
+  var ANONYMOUS = "<<anonymous>>";
 
   // Important!
   // Keep this list in sync with production version in `./factoryWithThrowingShims.js`.
   var ReactPropTypes = {
-    array: createPrimitiveTypeChecker('array'),
-    bigint: createPrimitiveTypeChecker('bigint'),
-    bool: createPrimitiveTypeChecker('boolean'),
-    func: createPrimitiveTypeChecker('function'),
-    number: createPrimitiveTypeChecker('number'),
-    object: createPrimitiveTypeChecker('object'),
-    string: createPrimitiveTypeChecker('string'),
-    symbol: createPrimitiveTypeChecker('symbol'),
+    array: createPrimitiveTypeChecker("array"),
+    bigint: createPrimitiveTypeChecker("bigint"),
+    bool: createPrimitiveTypeChecker("boolean"),
+    func: createPrimitiveTypeChecker("function"),
+    number: createPrimitiveTypeChecker("number"),
+    object: createPrimitiveTypeChecker("object"),
+    string: createPrimitiveTypeChecker("string"),
+    symbol: createPrimitiveTypeChecker("symbol"),
 
     any: createAnyTypeChecker(),
     arrayOf: createArrayOfTypeChecker,
@@ -162,18 +266,26 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
    */
   function PropTypeError(message, data) {
     this.message = message;
-    this.data = data && typeof data === 'object' ? data: {};
-    this.stack = '';
+    this.data = data && typeof data === "object" ? data : {};
+    this.stack = "";
   }
   // Make `instanceof Error` still work for returned errors.
   PropTypeError.prototype = Error.prototype;
 
   function createChainableTypeChecker(validate) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       var manualPropTypeCallCache = {};
       var manualPropTypeWarningCount = 0;
     }
-    function checkType(isRequired, props, propName, componentName, location, propFullName, secret) {
+    function checkType(
+      isRequired,
+      props,
+      propName,
+      componentName,
+      location,
+      propFullName,
+      secret
+    ) {
       componentName = componentName || ANONYMOUS;
       propFullName = propFullName || propName;
 
@@ -181,26 +293,34 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
         if (throwOnDirectAccess) {
           // New behavior only for users of `prop-types` package
           var err = new Error(
-            'Calling PropTypes validators directly is not supported by the `prop-types` package. ' +
-            'Use `PropTypes.checkPropTypes()` to call them. ' +
-            'Read more at http://fb.me/use-check-prop-types'
+            "Calling PropTypes validators directly is not supported by the `prop-types` package. " +
+              "Use `PropTypes.checkPropTypes()` to call them. " +
+              "Read more at http://fb.me/use-check-prop-types"
           );
-          err.name = 'Invariant Violation';
+          err.name = "Invariant Violation";
           throw err;
-        } else if (process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
+        } else if (
+          process.env.NODE_ENV !== "production" &&
+          typeof console !== "undefined"
+        ) {
           // Old behavior for people using React.PropTypes
-          var cacheKey = componentName + ':' + propName;
+          var cacheKey = componentName + ":" + propName;
           if (
             !manualPropTypeCallCache[cacheKey] &&
             // Avoid spamming the console because they are often not actionable except for lib authors
             manualPropTypeWarningCount < 3
           ) {
             printWarning(
-              'You are manually calling a React.PropTypes validation ' +
-              'function for the `' + propFullName + '` prop on `' + componentName + '`. This is deprecated ' +
-              'and will throw in the standalone `prop-types` package. ' +
-              'You may be seeing this warning due to a third-party PropTypes ' +
-              'library. See https://fb.me/react-warning-dont-call-proptypes ' + 'for details.'
+              "You are manually calling a React.PropTypes validation " +
+                "function for the `" +
+                propFullName +
+                "` prop on `" +
+                componentName +
+                "`. This is deprecated " +
+                "and will throw in the standalone `prop-types` package. " +
+                "You may be seeing this warning due to a third-party PropTypes " +
+                "library. See https://fb.me/react-warning-dont-call-proptypes " +
+                "for details."
             );
             manualPropTypeCallCache[cacheKey] = true;
             manualPropTypeWarningCount++;
@@ -210,9 +330,23 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
       if (props[propName] == null) {
         if (isRequired) {
           if (props[propName] === null) {
-            return new PropTypeError('The ' + location + ' `' + propFullName + '` is marked as required ' + ('in `' + componentName + '`, but its value is `null`.'));
+            return new PropTypeError(
+              "The " +
+                location +
+                " `" +
+                propFullName +
+                "` is marked as required " +
+                ("in `" + componentName + "`, but its value is `null`.")
+            );
           }
-          return new PropTypeError('The ' + location + ' `' + propFullName + '` is marked as required in ' + ('`' + componentName + '`, but its value is `undefined`.'));
+          return new PropTypeError(
+            "The " +
+              location +
+              " `" +
+              propFullName +
+              "` is marked as required in " +
+              ("`" + componentName + "`, but its value is `undefined`.")
+          );
         }
         return null;
       } else {
@@ -227,7 +361,14 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
   }
 
   function createPrimitiveTypeChecker(expectedType) {
-    function validate(props, propName, componentName, location, propFullName, secret) {
+    function validate(
+      props,
+      propName,
+      componentName,
+      location,
+      propFullName,
+      secret
+    ) {
       var propValue = props[propName];
       var propType = getPropType(propValue);
       if (propType !== expectedType) {
@@ -237,8 +378,18 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
         var preciseType = getPreciseType(propValue);
 
         return new PropTypeError(
-          'Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + preciseType + '` supplied to `' + componentName + '`, expected ') + ('`' + expectedType + '`.'),
-          {expectedType: expectedType}
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type " +
+            ("`" +
+              preciseType +
+              "` supplied to `" +
+              componentName +
+              "`, expected ") +
+            ("`" + expectedType + "`."),
+          { expectedType: expectedType }
         );
       }
       return null;
@@ -252,16 +403,40 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 
   function createArrayOfTypeChecker(typeChecker) {
     function validate(props, propName, componentName, location, propFullName) {
-      if (typeof typeChecker !== 'function') {
-        return new PropTypeError('Property `' + propFullName + '` of component `' + componentName + '` has invalid PropType notation inside arrayOf.');
+      if (typeof typeChecker !== "function") {
+        return new PropTypeError(
+          "Property `" +
+            propFullName +
+            "` of component `" +
+            componentName +
+            "` has invalid PropType notation inside arrayOf."
+        );
       }
       var propValue = props[propName];
       if (!Array.isArray(propValue)) {
         var propType = getPropType(propValue);
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected an array.'));
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type " +
+            ("`" +
+              propType +
+              "` supplied to `" +
+              componentName +
+              "`, expected an array.")
+        );
       }
       for (var i = 0; i < propValue.length; i++) {
-        var error = typeChecker(propValue, i, componentName, location, propFullName + '[' + i + ']', ReactPropTypesSecret);
+        var error = typeChecker(
+          propValue,
+          i,
+          componentName,
+          location,
+          propFullName + "[" + i + "]",
+          ReactPropTypesSecret
+        );
         if (error instanceof Error) {
           return error;
         }
@@ -276,7 +451,18 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
       var propValue = props[propName];
       if (!isValidElement(propValue)) {
         var propType = getPropType(propValue);
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected a single ReactElement.'));
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type " +
+            ("`" +
+              propType +
+              "` supplied to `" +
+              componentName +
+              "`, expected a single ReactElement.")
+        );
       }
       return null;
     }
@@ -286,9 +472,20 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
   function createElementTypeTypeChecker() {
     function validate(props, propName, componentName, location, propFullName) {
       var propValue = props[propName];
-      if (!ReactIs.isValidElementType(propValue)) {
+      if (!isValidElementType(propValue)) {
         var propType = getPropType(propValue);
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected a single ReactElement type.'));
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type " +
+            ("`" +
+              propType +
+              "` supplied to `" +
+              componentName +
+              "`, expected a single ReactElement type.")
+        );
       }
       return null;
     }
@@ -300,7 +497,19 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
       if (!(props[propName] instanceof expectedClass)) {
         var expectedClassName = expectedClass.name || ANONYMOUS;
         var actualClassName = getClassName(props[propName]);
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + actualClassName + '` supplied to `' + componentName + '`, expected ') + ('instance of `' + expectedClassName + '`.'));
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type " +
+            ("`" +
+              actualClassName +
+              "` supplied to `" +
+              componentName +
+              "`, expected ") +
+            ("instance of `" + expectedClassName + "`.")
+        );
       }
       return null;
     }
@@ -309,14 +518,18 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 
   function createEnumTypeChecker(expectedValues) {
     if (!Array.isArray(expectedValues)) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (process.env.NODE_ENV !== "production") {
         if (arguments.length > 1) {
           printWarning(
-            'Invalid arguments supplied to oneOf, expected an array, got ' + arguments.length + ' arguments. ' +
-            'A common mistake is to write oneOf(x, y, z) instead of oneOf([x, y, z]).'
+            "Invalid arguments supplied to oneOf, expected an array, got " +
+              arguments.length +
+              " arguments. " +
+              "A common mistake is to write oneOf(x, y, z) instead of oneOf([x, y, z])."
           );
         } else {
-          printWarning('Invalid argument supplied to oneOf, expected an array.');
+          printWarning(
+            "Invalid argument supplied to oneOf, expected an array."
+          );
         }
       }
       return emptyFunctionThatReturnsNull;
@@ -330,31 +543,71 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
         }
       }
 
-      var valuesString = JSON.stringify(expectedValues, function replacer(key, value) {
-        var type = getPreciseType(value);
-        if (type === 'symbol') {
-          return String(value);
+      var valuesString = JSON.stringify(
+        expectedValues,
+        function replacer(key, value) {
+          var type = getPreciseType(value);
+          if (type === "symbol") {
+            return String(value);
+          }
+          return value;
         }
-        return value;
-      });
-      return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of value `' + String(propValue) + '` ' + ('supplied to `' + componentName + '`, expected one of ' + valuesString + '.'));
+      );
+      return new PropTypeError(
+        "Invalid " +
+          location +
+          " `" +
+          propFullName +
+          "` of value `" +
+          String(propValue) +
+          "` " +
+          ("supplied to `" +
+            componentName +
+            "`, expected one of " +
+            valuesString +
+            ".")
+      );
     }
     return createChainableTypeChecker(validate);
   }
 
   function createObjectOfTypeChecker(typeChecker) {
     function validate(props, propName, componentName, location, propFullName) {
-      if (typeof typeChecker !== 'function') {
-        return new PropTypeError('Property `' + propFullName + '` of component `' + componentName + '` has invalid PropType notation inside objectOf.');
+      if (typeof typeChecker !== "function") {
+        return new PropTypeError(
+          "Property `" +
+            propFullName +
+            "` of component `" +
+            componentName +
+            "` has invalid PropType notation inside objectOf."
+        );
       }
       var propValue = props[propName];
       var propType = getPropType(propValue);
-      if (propType !== 'object') {
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected an object.'));
+      if (propType !== "object") {
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type " +
+            ("`" +
+              propType +
+              "` supplied to `" +
+              componentName +
+              "`, expected an object.")
+        );
       }
       for (var key in propValue) {
         if (has(propValue, key)) {
-          var error = typeChecker(propValue, key, componentName, location, propFullName + '.' + key, ReactPropTypesSecret);
+          var error = typeChecker(
+            propValue,
+            key,
+            componentName,
+            location,
+            propFullName + "." + key,
+            ReactPropTypesSecret
+          );
           if (error instanceof Error) {
             return error;
           }
@@ -367,16 +620,24 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 
   function createUnionTypeChecker(arrayOfTypeCheckers) {
     if (!Array.isArray(arrayOfTypeCheckers)) {
-      process.env.NODE_ENV !== 'production' ? printWarning('Invalid argument supplied to oneOfType, expected an instance of array.') : void 0;
+      process.env.NODE_ENV !== "production"
+        ? printWarning(
+            "Invalid argument supplied to oneOfType, expected an instance of array."
+          )
+        : void 0;
       return emptyFunctionThatReturnsNull;
     }
 
     for (var i = 0; i < arrayOfTypeCheckers.length; i++) {
       var checker = arrayOfTypeCheckers[i];
-      if (typeof checker !== 'function') {
+      if (typeof checker !== "function") {
         printWarning(
-          'Invalid argument supplied to oneOfType. Expected an array of check functions, but ' +
-          'received ' + getPostfixForTypeWarning(checker) + ' at index ' + i + '.'
+          "Invalid argument supplied to oneOfType. Expected an array of check functions, but " +
+            "received " +
+            getPostfixForTypeWarning(checker) +
+            " at index " +
+            i +
+            "."
         );
         return emptyFunctionThatReturnsNull;
       }
@@ -386,16 +647,33 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
       var expectedTypes = [];
       for (var i = 0; i < arrayOfTypeCheckers.length; i++) {
         var checker = arrayOfTypeCheckers[i];
-        var checkerResult = checker(props, propName, componentName, location, propFullName, ReactPropTypesSecret);
+        var checkerResult = checker(
+          props,
+          propName,
+          componentName,
+          location,
+          propFullName,
+          ReactPropTypesSecret
+        );
         if (checkerResult == null) {
           return null;
         }
-        if (checkerResult.data && has(checkerResult.data, 'expectedType')) {
+        if (checkerResult.data && has(checkerResult.data, "expectedType")) {
           expectedTypes.push(checkerResult.data.expectedType);
         }
       }
-      var expectedTypesMessage = (expectedTypes.length > 0) ? ', expected one of type [' + expectedTypes.join(', ') + ']': '';
-      return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` supplied to ' + ('`' + componentName + '`' + expectedTypesMessage + '.'));
+      var expectedTypesMessage =
+        expectedTypes.length > 0
+          ? ", expected one of type [" + expectedTypes.join(", ") + "]"
+          : "";
+      return new PropTypeError(
+        "Invalid " +
+          location +
+          " `" +
+          propFullName +
+          "` supplied to " +
+          ("`" + componentName + "`" + expectedTypesMessage + ".")
+      );
     }
     return createChainableTypeChecker(validate);
   }
@@ -403,17 +681,39 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
   function createNodeChecker() {
     function validate(props, propName, componentName, location, propFullName) {
       if (!isNode(props[propName])) {
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` supplied to ' + ('`' + componentName + '`, expected a ReactNode.'));
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` supplied to " +
+            ("`" + componentName + "`, expected a ReactNode.")
+        );
       }
       return null;
     }
     return createChainableTypeChecker(validate);
   }
 
-  function invalidValidatorError(componentName, location, propFullName, key, type) {
+  function invalidValidatorError(
+    componentName,
+    location,
+    propFullName,
+    key,
+    type
+  ) {
     return new PropTypeError(
-      (componentName || 'React class') + ': ' + location + ' type `' + propFullName + '.' + key + '` is invalid; ' +
-      'it must be a function, usually from the `prop-types` package, but received `' + type + '`.'
+      (componentName || "React class") +
+        ": " +
+        location +
+        " type `" +
+        propFullName +
+        "." +
+        key +
+        "` is invalid; " +
+        "it must be a function, usually from the `prop-types` package, but received `" +
+        type +
+        "`."
     );
   }
 
@@ -421,15 +721,37 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
     function validate(props, propName, componentName, location, propFullName) {
       var propValue = props[propName];
       var propType = getPropType(propValue);
-      if (propType !== 'object') {
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type `' + propType + '` ' + ('supplied to `' + componentName + '`, expected `object`.'));
+      if (propType !== "object") {
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type `" +
+            propType +
+            "` " +
+            ("supplied to `" + componentName + "`, expected `object`.")
+        );
       }
       for (var key in shapeTypes) {
         var checker = shapeTypes[key];
-        if (typeof checker !== 'function') {
-          return invalidValidatorError(componentName, location, propFullName, key, getPreciseType(checker));
+        if (typeof checker !== "function") {
+          return invalidValidatorError(
+            componentName,
+            location,
+            propFullName,
+            key,
+            getPreciseType(checker)
+          );
         }
-        var error = checker(propValue, key, componentName, location, propFullName + '.' + key, ReactPropTypesSecret);
+        var error = checker(
+          propValue,
+          key,
+          componentName,
+          location,
+          propFullName + "." + key,
+          ReactPropTypesSecret
+        );
         if (error) {
           return error;
         }
@@ -443,24 +765,56 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
     function validate(props, propName, componentName, location, propFullName) {
       var propValue = props[propName];
       var propType = getPropType(propValue);
-      if (propType !== 'object') {
-        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type `' + propType + '` ' + ('supplied to `' + componentName + '`, expected `object`.'));
+      if (propType !== "object") {
+        return new PropTypeError(
+          "Invalid " +
+            location +
+            " `" +
+            propFullName +
+            "` of type `" +
+            propType +
+            "` " +
+            ("supplied to `" + componentName + "`, expected `object`.")
+        );
       }
       // We need to check all keys in case some are required but missing from props.
       var allKeys = assign({}, props[propName], shapeTypes);
       for (var key in allKeys) {
         var checker = shapeTypes[key];
-        if (has(shapeTypes, key) && typeof checker !== 'function') {
-          return invalidValidatorError(componentName, location, propFullName, key, getPreciseType(checker));
+        if (has(shapeTypes, key) && typeof checker !== "function") {
+          return invalidValidatorError(
+            componentName,
+            location,
+            propFullName,
+            key,
+            getPreciseType(checker)
+          );
         }
         if (!checker) {
           return new PropTypeError(
-            'Invalid ' + location + ' `' + propFullName + '` key `' + key + '` supplied to `' + componentName + '`.' +
-            '\nBad object: ' + JSON.stringify(props[propName], null, '  ') +
-            '\nValid keys: ' + JSON.stringify(Object.keys(shapeTypes), null, '  ')
+            "Invalid " +
+              location +
+              " `" +
+              propFullName +
+              "` key `" +
+              key +
+              "` supplied to `" +
+              componentName +
+              "`." +
+              "\nBad object: " +
+              JSON.stringify(props[propName], null, "  ") +
+              "\nValid keys: " +
+              JSON.stringify(Object.keys(shapeTypes), null, "  ")
           );
         }
-        var error = checker(propValue, key, componentName, location, propFullName + '.' + key, ReactPropTypesSecret);
+        var error = checker(
+          propValue,
+          key,
+          componentName,
+          location,
+          propFullName + "." + key,
+          ReactPropTypesSecret
+        );
         if (error) {
           return error;
         }
@@ -473,13 +827,13 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 
   function isNode(propValue) {
     switch (typeof propValue) {
-      case 'number':
-      case 'string':
-      case 'undefined':
+      case "number":
+      case "string":
+      case "undefined":
         return true;
-      case 'boolean':
+      case "boolean":
         return !propValue;
-      case 'object':
+      case "object":
         if (Array.isArray(propValue)) {
           return propValue.every(isNode);
         }
@@ -520,7 +874,7 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 
   function isSymbol(propType, propValue) {
     // Native Symbol.
-    if (propType === 'symbol') {
+    if (propType === "symbol") {
       return true;
     }
 
@@ -530,12 +884,12 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
     }
 
     // 19.4.3.5 Symbol.prototype[@@toStringTag] === 'Symbol'
-    if (propValue['@@toStringTag'] === 'Symbol') {
+    if (propValue["@@toStringTag"] === "Symbol") {
       return true;
     }
 
     // Fallback for non-spec compliant Symbols which are polyfilled.
-    if (typeof Symbol === 'function' && propValue instanceof Symbol) {
+    if (typeof Symbol === "function" && propValue instanceof Symbol) {
       return true;
     }
 
@@ -546,16 +900,16 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
   function getPropType(propValue) {
     var propType = typeof propValue;
     if (Array.isArray(propValue)) {
-      return 'array';
+      return "array";
     }
     if (propValue instanceof RegExp) {
       // Old webkits (at least until Android 4.0) return 'function' rather than
       // 'object' for typeof a RegExp. We'll normalize this here so that /bla/
       // passes PropTypes.object.
-      return 'object';
+      return "object";
     }
     if (isSymbol(propType, propValue)) {
-      return 'symbol';
+      return "symbol";
     }
     return propType;
   }
@@ -563,15 +917,15 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
   // This handles more types than `getPropType`. Only used for error messages.
   // See `createPrimitiveTypeChecker`.
   function getPreciseType(propValue) {
-    if (typeof propValue === 'undefined' || propValue === null) {
-      return '' + propValue;
+    if (typeof propValue === "undefined" || propValue === null) {
+      return "" + propValue;
     }
     var propType = getPropType(propValue);
-    if (propType === 'object') {
+    if (propType === "object") {
       if (propValue instanceof Date) {
-        return 'date';
+        return "date";
       } else if (propValue instanceof RegExp) {
-        return 'regexp';
+        return "regexp";
       }
     }
     return propType;
@@ -582,13 +936,13 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
   function getPostfixForTypeWarning(value) {
     var type = getPreciseType(value);
     switch (type) {
-      case 'array':
-      case 'object':
-        return 'an ' + type;
-      case 'boolean':
-      case 'date':
-      case 'regexp':
-        return 'a ' + type;
+      case "array":
+      case "object":
+        return "an " + type;
+      case "boolean":
+      case "date":
+      case "regexp":
+        return "a " + type;
       default:
         return type;
     }
